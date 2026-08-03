@@ -1,0 +1,22 @@
+{
+  "name": "Objective",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "player_id": { "type": "string" },
+    "title": { "type": "string", "required": true },
+    "description": { "type": "string" },
+    "type": {
+      "type": "string",
+      "enum": ["primary", "secondary", "secret", "victory"],
+      "default": "primary"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "achieved", "abandoned", "failed"],
+      "default": "active"
+    },
+    "progress": { "type": "number", "default": 0, "min": 0, "max": 100 },
+    "stakes": { "type": "string" },
+    "deadline": { "type": "string" }
+  }
+}

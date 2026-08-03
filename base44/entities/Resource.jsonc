@@ -1,0 +1,22 @@
+{
+  "name": "Resource",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "player_id": { "type": "string", "required": true },
+    "name": { "type": "string", "required": true },
+    "category": {
+      "type": "string",
+      "enum": ["military", "political", "economic", "magical", "informational", "material", "personnel", "territory", "other"],
+      "default": "other"
+    },
+    "description": { "type": "string" },
+    "quantity": { "type": "number", "default": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["active", "depleted", "lost", "transferred"],
+      "default": "active"
+    },
+    "source_move_id": { "type": "string" },
+    "acquired_via": { "type": "string" }
+  }
+}

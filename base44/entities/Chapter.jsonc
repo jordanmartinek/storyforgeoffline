@@ -1,0 +1,8 @@
+{
+  "name": "Chapter",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "title": { "type": "string", "required": true },
+    "order": { "type": "number", "default": 0 }
+  }
+}

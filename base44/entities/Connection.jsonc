@@ -1,0 +1,21 @@
+{
+  "name": "Connection",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "source_type": {
+      "type": "string",
+      "enum": ["character", "location", "lore"],
+      "required": true
+    },
+    "source_id": { "type": "string", "required": true },
+    "target_type": {
+      "type": "string",
+      "enum": ["character", "location", "lore"],
+      "required": true
+    },
+    "target_id": { "type": "string", "required": true },
+    "relationship_type": { "type": "string", "required": true },
+    "description": { "type": "string" },
+    "strength": { "type": "number", "default": 50, "min": 0, "max": 100 }
+  }
+}

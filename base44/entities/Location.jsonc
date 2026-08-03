@@ -1,0 +1,16 @@
+{
+  "name": "Location",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "name": { "type": "string", "required": true },
+    "type": {
+      "type": "string",
+      "enum": ["city", "region", "structure", "wilderness", "landmark", "other"],
+      "default": "other"
+    },
+    "summary": { "type": "string" },
+    "description": { "type": "string" },
+    "parent_location_id": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  }
+}

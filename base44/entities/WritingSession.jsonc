@@ -1,0 +1,12 @@
+{
+  "name": "WritingSession",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "date": { "type": "string", "required": true },
+    "words_written": { "type": "number", "default": 0 },
+    "duration_seconds": { "type": "number", "default": 0 },
+    "wpm": { "type": "number", "default": 0 },
+    "start_words": { "type": "number", "default": 0 },
+    "last_words": { "type": "number", "default": 0 }
+  }
+}

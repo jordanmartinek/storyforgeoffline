@@ -1,0 +1,26 @@
+{
+  "name": "Character",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "name": { "type": "string", "required": true },
+    "role": {
+      "type": "string",
+      "enum": ["protagonist", "antagonist", "ally", "mentor", "foil", "supporting", "minor"],
+      "default": "supporting"
+    },
+    "archetype": { "type": "string" },
+    "summary": { "type": "string" },
+    "description": { "type": "string" },
+    "current_objective": { "type": "string" },
+    "long_term_objective": { "type": "string" },
+    "motivation": { "type": "string" },
+    "conflict": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["active", "dormant", "deceased", "absent"],
+      "default": "active"
+    },
+    "color": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  }
+}

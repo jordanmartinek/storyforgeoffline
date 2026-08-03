@@ -1,0 +1,28 @@
+{
+  "name": "Move",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "player_id": { "type": "string", "required": true },
+    "objective_id": { "type": "string" },
+    "scene_id": { "type": "string" },
+    "title": { "type": "string", "required": true },
+    "description": { "type": "string" },
+    "intent": { "type": "string" },
+    "outcome": {
+      "type": "string",
+      "enum": ["pending", "success", "partial", "failure", "catastrophic"],
+      "default": "pending"
+    },
+    "consequences": { "type": "string" },
+    "state_changes": { "type": "string" },
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "extreme"],
+      "default": "medium"
+    },
+    "to_x": { "type": "number", "min": 0, "max": 7 },
+    "to_y": { "type": "number", "min": 0, "max": 7 },
+    "story_order": { "type": "number" },
+    "order": { "type": "number", "default": 0 }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Scene",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "chapter_id": { "type": "string", "required": true },
+    "title": { "type": "string", "required": true },
+    "order": { "type": "number", "default": 0 },
+    "content": { "type": "string", "default": "" },
+    "word_count": { "type": "number", "default": 0 },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "revised", "final"],
+      "default": "draft"
+    }
+  }
+}

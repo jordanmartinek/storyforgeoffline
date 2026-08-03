@@ -1,0 +1,28 @@
+{
+  "name": "Project",
+  "schema": {
+    "title": { "type": "string", "required": true },
+    "genre": { "type": "string" },
+    "synopsis": { "type": "string" },
+    "cover_image_url": { "type": "string" },
+    "status": { 
+      "type": "string", 
+      "enum": ["planning", "drafting", "revising", "complete"],
+      "default": "planning"
+    },
+    "target_word_count": { "type": "number", "default": 80000 },
+    "word_count": { "type": "number", "default": 0 },
+    "progress": { "type": "number", "default": 0 },
+    "writing_mode": { 
+      "type": "string", 
+      "enum": ["novel", "screenplay"],
+      "default": "novel"
+    },
+    "daily_goal": { "type": "number", "default": 1000 },
+    "weekly_goal": { "type": "number", "default": 5000 },
+    "monthly_goal": { "type": "number", "default": 20000 },
+    "deadline": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "archived": { "type": "boolean", "default": false }
+  }
+}

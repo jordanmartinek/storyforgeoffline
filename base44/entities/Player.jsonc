@@ -1,0 +1,27 @@
+{
+  "name": "Player",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "character_id": { "type": "string" },
+    "name": { "type": "string", "required": true },
+    "side": {
+      "type": "string",
+      "enum": ["protagonist", "antagonist", "neutral"],
+      "default": "neutral"
+    },
+    "current_strategy": { "type": "string" },
+    "initiative": { "type": "number", "default": 50, "min": 0, "max": 100 },
+    "pressure": { "type": "number", "default": 50, "min": 0, "max": 100 },
+    "morale": { "type": "number", "default": 50, "min": 0, "max": 100 },
+    "threat_level": { "type": "number", "default": 50, "min": 0, "max": 100 },
+    "victory_progress": { "type": "number", "default": 0, "min": 0, "max": 100 },
+    "resources": { "type": "string" },
+    "known_information": { "type": "string" },
+    "hidden_information": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["active", "dormant", "defeated", "victorious"],
+      "default": "active"
+    }
+  }
+}

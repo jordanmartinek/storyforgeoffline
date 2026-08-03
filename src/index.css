@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Warm paper light theme */
+    --background: 40 33% 98%;
+    --foreground: 30 10% 15%;
+    --card: 40 30% 96%;
+    --card-foreground: 30 10% 15%;
+    --popover: 40 33% 98%;
+    --popover-foreground: 30 10% 15%;
+    --primary: 25 80% 45%;
+    --primary-foreground: 40 33% 98%;
+    --secondary: 35 20% 90%;
+    --secondary-foreground: 30 10% 25%;
+    --muted: 35 15% 92%;
+    --muted-foreground: 30 8% 46%;
+    --accent: 25 60% 92%;
+    --accent-foreground: 25 80% 30%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 35 15% 88%;
+    --input: 35 15% 88%;
+    --ring: 25 80% 45%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Cinematic slate + amber dark theme */
+    --background: 220 20% 10%;
+    --foreground: 40 20% 92%;
+    --card: 220 18% 13%;
+    --card-foreground: 40 20% 92%;
+    --popover: 220 18% 13%;
+    --popover-foreground: 40 20% 92%;
+    --primary: 35 90% 55%;
+    --primary-foreground: 220 20% 10%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 40 15% 80%;
+    --muted: 220 15% 16%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 35 40% 18%;
+    --accent-foreground: 35 90% 70%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 35 90% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+/* Custom component classes */
+@layer components {
+  .glass {
+    @apply bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-white/20 dark:border-slate-700/30;
+  }
+
+  .cinematic-bg {
+    background: radial-gradient(ellipse at top, hsl(var(--accent)) 0%, hsl(var(--background)) 70%);
+  }
+}
+
+/* Scrollbar styling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted)) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+/* Quill Editor Overrides */
+.ql-toolbar.ql-snow {
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: hsl(var(--card));
+}
+.ql-container.ql-snow {
+  border: 1px solid hsl(var(--border)) !important;
+  border-top: none !important;
+  border-radius: 0 0 var(--radius) var(--radius);
+  font-size: 1rem;
+  min-height: 400px;
+}
+.ql-editor {
+  padding: 1.5rem 2rem;
+  line-height: 1.8;
+  color: hsl(var(--foreground));
+}
+.ql-editor.ql-blank::before {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+.ql-snow .ql-stroke {
+  stroke: hsl(var(--foreground)) !important;
+}
+.ql-snow .ql-fill {
+  fill: hsl(var(--foreground)) !important;
+}
+.ql-snow .ql-picker-label {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Writing mode: Novel */
+.writing-novel .ql-editor {
+  font-family: 'Newsreader', serif;
+  font-size: 1.125rem;
+  line-height: 2;
+  max-width: 680px;
+  margin: 0 auto;
+}
+.writing-novel .ql-editor p {
+  text-indent: 2em;
+  margin-bottom: 0;
+}
+.writing-novel .ql-editor p:first-child,
+.writing-novel .ql-editor h1 + p,
+.writing-novel .ql-editor h2 + p,
+.writing-novel .ql-editor h3 + p {
+  text-indent: 0;
+}
+
+/* Writing mode: Screenplay */
+.writing-screenplay .ql-editor {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.writing-screenplay .ql-editor h2 {
+  text-transform: uppercase;
+  font-weight: bold;
+  margin-top: 2em;
+}
+.writing-screenplay .ql-editor blockquote {
+  margin-left: 2.5em;
+  margin-right: 2.5em;
+  border: none;
+  padding: 0;
+}
+.writing-screenplay .ql-editor em {
+  margin-left: 1.5em;
+  display: block;
+}

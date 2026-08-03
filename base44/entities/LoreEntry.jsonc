@@ -1,0 +1,15 @@
+{
+  "name": "LoreEntry",
+  "schema": {
+    "project_id": { "type": "string", "required": true },
+    "name": { "type": "string", "required": true },
+    "category": {
+      "type": "string",
+      "enum": ["magic_system", "faction", "history", "item", "religion", "culture", "creature", "language", "other"],
+      "default": "other"
+    },
+    "summary": { "type": "string" },
+    "description": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  }
+}
