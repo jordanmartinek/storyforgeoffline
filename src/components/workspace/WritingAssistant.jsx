@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/button'; // simplified
+
 import FormattingAssistant from './FormattingAssistant';
 import {
   RefreshCw, Loader2, Check, Copy, Wand2, CheckCircle, AlertCircle,
