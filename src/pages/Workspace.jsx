@@ -25,19 +25,23 @@ export default function Workspace() {
 
   // UI state
   const [activeSceneId, setActiveSceneId] = useState(null);
-  const [rightPanel, setRightPanel] = useState('dashboard'); // dashboard | assistant | reference | null
+  const [rightPanel, setRightPanel] = useState('dashboard');
   const [focusMode, setFocusMode] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
 
   // Session tracking refs
-  const sessionStartTotal = useRef(0);
   const sessionStartTime = useRef(Date.now());
-  const lastFlushTotal = useRef(0);
+  const sessionStartWordCount = useRef(0); // total project words when session started
+  const currentWordCount = useRef(0); // current total project words (updated by editor)
   const lastFlushTime = useRef(Date.now());
+  const lastFlushedWords = useRef(0);
   const celebratedRef = useRef(false);
   const editorApiRef = useRef(null);
+  const flushIntervalRef = useRef(null);
+
+  // Live display state (for dashboard)
   const [liveWords, setLiveWords] = useState(0);
   const [liveSeconds, setLiveSeconds] = useState(0);
 
@@ -67,7 +71,114 @@ export default function Workspace() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project', projectId] }),
   });
 
-  // Live tick for dashboard timer
+  // ─── Session flush logic ──────────────────────────────────────────────────────
+  // Calculates delta words and elapsed time, then upserts today's WritingSession.
+
+  const flushSession = useCallback(async () => {
+    const now = Date.now();
+    const elapsedSinceStart = Math.floor((now - sessionStartTime.current) / 1000);
+    const wordsWritten = Math.max(0, currentWordCount.current - sessionStartWordCount.current);
+
+    // Only flush if there's been actual writing activity
+    if (wordsWritten === 0 && elapsedSinceStart < 60) return;
+
+    const today = todayStr();
+
+    try {
+      // Find or create today's session
+      const existingSessions = await base44.entities.WritingSession.filter({
+        project_id: projectId,
+      });
+      const todaySession = existingSessions.find(s => s.date === today);
+
+      if (todaySession) {
+        // Update existing session — add delta since last flush
+        const deltaWords = Math.max(0, currentWordCount.current - lastFlushedWords.current);
+        const deltaSeconds = Math.floor((now - lastFlushTime.current) / 1000);
+        const newWordsWritten = (todaySession.words_written || 0) + deltaWords;
+        const newDuration = (todaySession.duration_seconds || 0) + deltaSeconds;
+        const newWpm = newDuration > 60 ? Math.round(newWordsWritten / (newDuration / 60)) : 0;
+
+        await base44.entities.WritingSession.update(todaySession.id, {
+          words_written: newWordsWritten,
+          duration_seconds: newDuration,
+          wpm: newWpm,
+          last_words: currentWordCount.current,
+        });
+      } else {
+        // Create new session for today
+        const wpm = elapsedSinceStart > 60 ? Math.round(wordsWritten / (elapsedSinceStart / 60)) : 0;
+        await base44.entities.WritingSession.create({
+          project_id: projectId,
+          date: today,
+          words_written: wordsWritten,
+          duration_seconds: elapsedSinceStart,
+          wpm: wpm,
+          start_words: sessionStartWordCount.current,
+          last_words: currentWordCount.current,
+        });
+      }
+
+      // Update project total word count
+      const allScenes = await base44.entities.Scene.filter({ project_id: projectId });
+      const totalWords = allScenes.reduce((sum, s) => sum + (s.word_count || 0), 0);
+      const progress = project?.target_word_count
+        ? Math.min(100, Math.round((totalWords / project.target_word_count) * 100))
+        : 0;
+      await base44.entities.Project.update(projectId, {
+        word_count: totalWords,
+        progress: progress,
+      });
+
+      // Update flush markers
+      lastFlushTime.current = now;
+      lastFlushedWords.current = currentWordCount.current;
+
+      // Invalidate queries so dashboard refreshes
+      qc.invalidateQueries({ queryKey: ['sessions', projectId] });
+      qc.invalidateQueries({ queryKey: ['project', projectId] });
+    } catch (err) {
+      console.error('Failed to flush writing session:', err);
+    }
+  }, [projectId, project, qc]);
+
+  // Initialize session start word count from scenes
+  useEffect(() => {
+    if (scenes.length > 0) {
+      const total = scenes.reduce((sum, s) => sum + (s.word_count || 0), 0);
+      sessionStartWordCount.current = total;
+      currentWordCount.current = total;
+      lastFlushedWords.current = total;
+    }
+  }, [scenes.length > 0]); // only on first load
+
+  // Flush every 60 seconds
+  useEffect(() => {
+    flushIntervalRef.current = setInterval(() => {
+      flushSession();
+    }, 60000);
+    return () => {
+      if (flushIntervalRef.current) clearInterval(flushIntervalRef.current);
+    };
+  }, [flushSession]);
+
+  // Flush on unmount (navigate away)
+  useEffect(() => {
+    return () => {
+      flushSession();
+    };
+  }, [flushSession]);
+
+  // Flush on beforeunload (tab close / refresh)
+  useEffect(() => {
+    function handleBeforeUnload() {
+      flushSession();
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [flushSession]);
+
+  // Live tick for dashboard timer (update display every 5s)
   useEffect(() => {
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - sessionStartTime.current) / 1000);
@@ -80,8 +191,16 @@ export default function Workspace() {
   const activeScene = scenes.find(s => s.id === activeSceneId);
   const writingMode = project?.writing_mode || 'novel';
 
-  function handleWordCountChange(wc) {
-    setLiveWords(wc - sessionStartTotal.current);
+  // Called by ManuscriptEditor when word count changes
+  function handleWordCountChange(newSceneWordCount) {
+    // Recalculate total project word count
+    const otherScenesWords = scenes
+      .filter(s => s.id !== activeSceneId)
+      .reduce((sum, s) => sum + (s.word_count || 0), 0);
+    const newTotal = otherScenesWords + newSceneWordCount;
+
+    currentWordCount.current = newTotal;
+    setLiveWords(Math.max(0, newTotal - sessionStartWordCount.current));
   }
 
   function toggleTheme() {
@@ -118,7 +237,6 @@ export default function Workspace() {
 
           <div className="flex-1" />
 
-          {/* Nav buttons */}
           <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate(createPageUrl('StoryBible', { id: projectId }))}>
             <BookOpen className="h-3 w-3 mr-1" /> Bible
           </Button>
@@ -143,14 +261,12 @@ export default function Workspace() {
         </header>
       )}
 
-      {/* Screenplay Toolbar */}
       {writingMode === 'screenplay' && !fullscreen && (
-        <ScreenplayToolbar onInsertElement={(format, id) => {/* handled by editor */}} />
+        <ScreenplayToolbar onInsertElement={(format, id) => {}} />
       )}
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel */}
         {!focusMode && !fullscreen && (
           <ChapterPanel
             projectId={projectId}
@@ -161,7 +277,6 @@ export default function Workspace() {
           />
         )}
 
-        {/* Center editor */}
         <ManuscriptEditor
           scene={activeScene}
           projectId={projectId}
@@ -170,7 +285,6 @@ export default function Workspace() {
           onReady={(api) => { editorApiRef.current = api; }}
         />
 
-        {/* Right panel */}
         {!focusMode && !fullscreen && rightPanel && (
           <>
             {rightPanel === 'dashboard' && (
@@ -195,7 +309,6 @@ export default function Workspace() {
         )}
       </div>
 
-      {/* Right panel toggle tabs */}
       {!focusMode && !fullscreen && (
         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-1 pr-1 z-10">
           <Button
@@ -225,7 +338,6 @@ export default function Workspace() {
         </div>
       )}
 
-      {/* Goals dialog */}
       <GoalsDialog
         open={goalsOpen}
         onOpenChange={setGoalsOpen}
