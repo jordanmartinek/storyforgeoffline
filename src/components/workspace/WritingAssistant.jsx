@@ -23,11 +23,10 @@ export default function WritingAssistant({
   content,
   writingMode,
   editorApi,
-  onIssuesChange, // callback to send issues to parent (for inline highlighting)
-  highlightedIssueIdx, // which issue the user clicked in the editor
+  onIssueCount, // callback: (number) => void — just the count for the footer
 }) {
   const [tab, setTab] = useState('proofread');
-  const [autoMode, setAutoMode] = useState(true); // default ON for better UX
+  const [autoMode, setAutoMode] = useState(false); // default OFF to prevent crashes on load
 
   // Proofread state
   const [corrections, setCorrections] = useState([]);
@@ -35,58 +34,75 @@ export default function WritingAssistant({
   const [dismissed, setDismissed] = useState(new Set());
   const autoScanTimer = useRef(null);
   const lastScannedText = useRef('');
-  const issueRefs = useRef({});
+  const isMounted = useRef(true);
 
   // Imagery state
   const [suggestions, setSuggestions] = useState([]);
   const [imageryLoading, setImageryLoading] = useState(false);
 
-  // Auto-scan: debounced 2s after content changes
+  // Track mount state to prevent setState after unmount
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  // Auto-scan: debounced 3s after content changes (only if panel is open + auto on)
   useEffect(() => {
     if (!autoMode || tab !== 'proofread') return;
+    if (!content || content.length < 10) return;
 
     const text = htmlToPlainText(content);
     if (!text || text.length < 10 || text === lastScannedText.current) return;
 
     if (autoScanTimer.current) clearTimeout(autoScanTimer.current);
     autoScanTimer.current = setTimeout(() => {
-      runProofread();
-    }, 2000);
+      doScan();
+    }, 3000);
 
     return () => {
       if (autoScanTimer.current) clearTimeout(autoScanTimer.current);
     };
   }, [content, autoMode, tab]);
 
-  // Scroll to highlighted issue when user clicks in editor
-  useEffect(() => {
-    if (highlightedIssueIdx != null && issueRefs.current[highlightedIssueIdx]) {
-      issueRefs.current[highlightedIssueIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [highlightedIssueIdx]);
-
-  const runProofread = useCallback(async () => {
+  async function doScan() {
+    if (proofLoading) return; // don't stack scans
     setProofLoading(true);
     setDismissed(new Set());
+
     try {
       const text = htmlToPlainText(content);
       if (!text || text.length < 5) {
-        setCorrections([]);
-        if (onIssuesChange) onIssuesChange([]);
+        if (isMounted.current) {
+          setCorrections([]);
+          if (onIssueCount) onIssueCount(0);
+        }
         return;
       }
+
       lastScannedText.current = text;
       const issues = await checkSpellingAndGrammar(text);
-      setCorrections(issues);
-      if (onIssuesChange) onIssuesChange(issues);
+
+      // Validate: make sure issues is a proper array of objects
+      const validIssues = Array.isArray(issues)
+        ? issues.filter(i => i && typeof i === 'object' && typeof i.original === 'string')
+        : [];
+
+      if (isMounted.current) {
+        setCorrections(validIssues);
+        if (onIssueCount) onIssueCount(validIssues.length);
+      }
     } catch (err) {
-      console.error('Proofread error:', err);
-      setCorrections([]);
-      if (onIssuesChange) onIssuesChange([]);
+      console.error('[WritingAssistant] Scan error:', err);
+      if (isMounted.current) {
+        setCorrections([]);
+        if (onIssueCount) onIssueCount(0);
+      }
     } finally {
-      setProofLoading(false);
+      if (isMounted.current) {
+        setProofLoading(false);
+      }
     }
-  }, [content, onIssuesChange]);
+  }
 
   async function runImagery() {
     setImageryLoading(true);
@@ -100,52 +116,62 @@ export default function WritingAssistant({
         prompt: buildImageryPrompt(text.slice(0, 2000)),
         response_json_schema: IMAGERY_SCHEMA,
       });
-      setSuggestions(res?.suggestions || []);
+      if (isMounted.current) {
+        setSuggestions(res?.suggestions || []);
+      }
     } catch (err) {
       console.error('Imagery error:', err);
     } finally {
-      setImageryLoading(false);
+      if (isMounted.current) setImageryLoading(false);
     }
   }
 
-  function applyFix(original, corrected, index) {
-    if (editorApi?.replaceText && corrected && corrected !== original) {
-      editorApi.replaceText(original, corrected);
+  function applyFix(correction, index) {
+    if (editorApi?.replaceText && correction.corrected && correction.corrected !== correction.original) {
+      editorApi.replaceText(correction.original, correction.corrected);
     }
-    setDismissed(prev => new Set([...prev, index]));
-    // Update issues for inline highlights
-    const remaining = corrections.filter((_, i) => i !== index && !dismissed.has(i));
-    if (onIssuesChange) onIssuesChange(remaining);
+    setDismissed(prev => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
   }
 
-  function applyReplacement(original, replacement, index) {
-    if (editorApi?.replaceText && replacement && replacement !== original) {
-      editorApi.replaceText(original, replacement);
+  function applyReplacement(correction, replacement, index) {
+    if (editorApi?.replaceText && replacement && replacement !== correction.original) {
+      editorApi.replaceText(correction.original, replacement);
     }
-    setDismissed(prev => new Set([...prev, index]));
-    const remaining = corrections.filter((_, i) => i !== index && !dismissed.has(i));
-    if (onIssuesChange) onIssuesChange(remaining);
+    setDismissed(prev => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
   }
 
   function dismissIssue(index) {
-    setDismissed(prev => new Set([...prev, index]));
-    const remaining = corrections.filter((_, i) => i !== index && !dismissed.has(i));
-    if (onIssuesChange) onIssuesChange(remaining);
+    setDismissed(prev => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
   }
 
   function applyAllFixes() {
-    corrections.forEach((c, i) => {
-      if (!dismissed.has(i) && c.corrected && c.corrected !== c.original && editorApi?.replaceText) {
+    const toFix = corrections.filter((c, i) => !dismissed.has(i) && c.corrected && c.corrected !== c.original);
+    // Apply in reverse order so positions don't shift
+    const sorted = [...toFix].sort((a, b) => (b.position || 0) - (a.position || 0));
+    for (const c of sorted) {
+      if (editorApi?.replaceText) {
         editorApi.replaceText(c.original, c.corrected);
       }
-    });
+    }
     setCorrections([]);
     setDismissed(new Set());
-    if (onIssuesChange) onIssuesChange([]);
+    if (onIssueCount) onIssueCount(0);
   }
 
   function copyText(text) {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard?.writeText(text);
   }
 
   const visibleCorrections = corrections.filter((_, i) => !dismissed.has(i));
@@ -154,7 +180,7 @@ export default function WritingAssistant({
   const styleCount = visibleCorrections.filter(c => c.severity === 'style').length;
 
   return (
-    <div className="w-80 border-l bg-card overflow-y-auto scrollbar-thin flex flex-col h-full">
+    <div className="w-80 border-l bg-card flex flex-col h-full">
       <div className="p-4 pb-2 border-b shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm">Writing Assistant</h3>
@@ -192,21 +218,20 @@ export default function WritingAssistant({
 
         {tab === 'proofread' && (
           <div className="space-y-3">
-            {/* Controls */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 {proofLoading && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
                 <p className="text-[10px] text-muted-foreground">
-                  {proofLoading ? 'Scanning...' : autoMode ? 'Auto-scanning' : 'Manual mode'}
+                  {proofLoading ? 'Scanning...' : autoMode ? 'Auto (3s delay)' : 'Click Scan'}
                 </p>
               </div>
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runProofread} disabled={proofLoading}>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={doScan} disabled={proofLoading}>
                 <RefreshCw className={`h-3 w-3 mr-1 ${proofLoading ? 'animate-spin' : ''}`} />
                 Scan
               </Button>
             </div>
 
-            {/* Summary */}
+            {/* Summary badges */}
             {visibleCorrections.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 {errorCount > 0 && (
@@ -235,20 +260,16 @@ export default function WritingAssistant({
               </Button>
             )}
 
-            {/* Empty state */}
+            {/* Empty / all-clear states */}
             {corrections.length === 0 && !proofLoading && (
               <div className="text-center py-8">
                 <CheckCircle className="h-10 w-10 mx-auto text-green-500/50 mb-3" />
                 <p className="text-sm font-medium text-muted-foreground">
-                  {autoMode ? 'No issues detected' : 'Click Scan to check'}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Uses LanguageTool (free, no API key)
+                  {lastScannedText.current ? 'No issues found!' : 'Click Scan to check your writing'}
                 </p>
               </div>
             )}
 
-            {/* All dismissed */}
             {corrections.length > 0 && visibleCorrections.length === 0 && (
               <div className="text-center py-6">
                 <CheckCircle className="h-8 w-8 mx-auto text-green-500 mb-2" />
@@ -257,44 +278,42 @@ export default function WritingAssistant({
             )}
 
             {/* Issue cards */}
-            {visibleCorrections.map((c) => {
+            {visibleCorrections.map((c, visibleIdx) => {
               const realIdx = corrections.indexOf(c);
               const meta = SEVERITY_STYLES[c.severity] || SEVERITY_STYLES.info;
               const Icon = meta.icon;
               const canFix = c.corrected && c.corrected !== c.original;
-              const isHighlighted = highlightedIssueIdx === realIdx;
+              const hasMultipleReplacements = Array.isArray(c.replacements) && c.replacements.length > 1;
 
               return (
                 <Card
-                  key={realIdx}
-                  ref={(el) => { issueRefs.current[realIdx] = el; }}
-                  className={cn(
-                    'p-3 border-l-4 transition-all',
-                    meta.bg,
-                    isHighlighted && 'ring-2 ring-primary shadow-md'
-                  )}
+                  key={`${realIdx}-${c.original}`}
+                  className={`p-3 border-l-4 ${meta.bg}`}
                 >
                   <div className="flex items-start gap-2">
                     <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${meta.color}`} />
                     <div className="flex-1 min-w-0">
-                      {/* Context: show the erroneous text */}
-                      <p className="text-xs font-mono bg-muted/50 rounded px-1.5 py-0.5 mb-1.5 break-words">
-                        <span className="line-through text-red-500/90">{c.original}</span>
-                        {canFix && (
+                      {/* Show the error + fix */}
+                      {canFix ? (
+                        <p className="text-xs font-mono bg-muted/50 rounded px-1.5 py-0.5 mb-1.5 break-words">
+                          <span className="line-through text-red-500/80">{c.original}</span>
                           <span className="text-green-600 ml-1">→ {c.corrected}</span>
-                        )}
-                      </p>
+                        </p>
+                      ) : (
+                        <p className="text-xs font-mono bg-muted/50 rounded px-1.5 py-0.5 mb-1.5 break-words">
+                          {c.original}
+                        </p>
+                      )}
 
-                      {/* Explanation */}
                       <p className="text-[11px] text-foreground/80 leading-snug">{c.reason}</p>
 
-                      {/* Multiple replacement options */}
-                      {c.replacements && c.replacements.length > 1 && (
+                      {/* Multiple replacements */}
+                      {hasMultipleReplacements && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {c.replacements.map((rep, ri) => (
                             <button
                               key={ri}
-                              onClick={() => applyReplacement(c.original, rep, realIdx)}
+                              onClick={() => applyReplacement(c, rep, realIdx)}
                               className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200 dark:hover:bg-green-800 transition-colors"
                             >
                               {rep}
@@ -303,29 +322,21 @@ export default function WritingAssistant({
                         </div>
                       )}
 
-                      {/* Category badge */}
-                      <Badge className={`text-[8px] mt-1.5 ${meta.badge}`}>
-                        {meta.label}
-                      </Badge>
+                      <Badge className={`text-[8px] mt-1.5 ${meta.badge}`}>{meta.label}</Badge>
                     </div>
 
-                    {/* Dismiss X */}
-                    <button
-                      onClick={() => dismissIssue(realIdx)}
-                      className="text-muted-foreground hover:text-foreground shrink-0"
-                    >
+                    <button onClick={() => dismissIssue(realIdx)} className="text-muted-foreground hover:text-foreground shrink-0">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
 
-                  {/* Action buttons */}
-                  {canFix && (!c.replacements || c.replacements.length <= 1) && (
-                    <div className="mt-2 flex gap-1">
+                  {/* Single fix button */}
+                  {canFix && !hasMultipleReplacements && (
+                    <div className="mt-2">
                       <Button
-                        size="sm"
-                        variant="ghost"
+                        size="sm" variant="ghost"
                         className="text-xs h-6 text-green-600 hover:text-green-700 hover:bg-green-50"
-                        onClick={() => applyFix(c.original, c.corrected, realIdx)}
+                        onClick={() => applyFix(c, realIdx)}
                       >
                         <Check className="h-3 w-3 mr-1" /> Fix
                       </Button>
@@ -357,7 +368,7 @@ export default function WritingAssistant({
               <Card key={i} className="p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <Badge variant="outline" className="text-[10px] mb-1 capitalize">{s.type}</Badge>
+                    <Badge variant="outline" className="text-[10px] mb-1 capitalize">{s.type || 'suggestion'}</Badge>
                     <p className="text-sm font-medium">{s.suggestion}</p>
                     {s.effect && <p className="text-xs text-muted-foreground mt-1">{s.effect}</p>}
                   </div>

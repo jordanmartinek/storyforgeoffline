@@ -45,9 +45,8 @@ export default function Workspace() {
   const [liveWords, setLiveWords] = useState(0);
   const [liveSeconds, setLiveSeconds] = useState(0);
 
-  // Writing assistant: inline issue highlighting
-  const [editorIssues, setEditorIssues] = useState([]);
-  const [highlightedIssueIdx, setHighlightedIssueIdx] = useState(null);
+  // Writing assistant issue count (for editor footer)
+  const [issueCount, setIssueCount] = useState(0);
 
   // Data queries
   const { data: project } = useQuery({
@@ -287,11 +286,7 @@ export default function Workspace() {
           writingMode={writingMode}
           onWordCountChange={handleWordCountChange}
           onReady={(api) => { editorApiRef.current = api; }}
-          issues={editorIssues}
-          onClickIssue={(idx) => {
-            setHighlightedIssueIdx(idx);
-            setRightPanel('assistant');
-          }}
+          issueCount={issueCount}
         />
 
         {!focusMode && !fullscreen && rightPanel && (
@@ -309,8 +304,7 @@ export default function Workspace() {
                 content={activeScene?.content || ''}
                 writingMode={writingMode}
                 editorApi={editorApiRef.current}
-                onIssuesChange={setEditorIssues}
-                highlightedIssueIdx={highlightedIssueIdx}
+                onIssueCount={setIssueCount}
               />
             )}
             {rightPanel === 'reference' && (
