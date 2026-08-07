@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { base44 } from '@/api/base44Client';
-import { htmlToPlainText, buildImageryPrompt, IMAGERY_SCHEMA } from '@/lib/writingAssistant';
+import { htmlToPlainText } from '@/lib/writingAssistant';
 import { checkSpellingAndGrammar } from '@/lib/spellcheck';
+import { generateImagerySuggestions } from '@/lib/imageryAssistant';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -108,19 +108,17 @@ export default function WritingAssistant({
     setImageryLoading(true);
     try {
       const text = htmlToPlainText(content);
-      if (!text || text.length < 20) {
+      if (!text || text.length < 30) {
         setSuggestions([]);
         return;
       }
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: buildImageryPrompt(text.slice(0, 2000)),
-        response_json_schema: IMAGERY_SCHEMA,
-      });
+      const results = generateImagerySuggestions(text);
       if (isMounted.current) {
-        setSuggestions(res?.suggestions || []);
+        setSuggestions(results);
       }
     } catch (err) {
       console.error('Imagery error:', err);
+      if (isMounted.current) setSuggestions([]);
     } finally {
       if (isMounted.current) setImageryLoading(false);
     }
@@ -351,28 +349,32 @@ export default function WritingAssistant({
         {tab === 'imagery' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Requires LLM API</p>
+              <p className="text-xs text-muted-foreground">Local analysis (instant)</p>
               <Button variant="outline" size="sm" className="h-7 text-xs" onClick={runImagery} disabled={imageryLoading}>
                 {imageryLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Wand2 className="h-3 w-3 mr-1" />}
-                {imageryLoading ? 'Generating...' : 'Generate'}
+                {imageryLoading ? 'Analyzing...' : 'Analyze'}
               </Button>
             </div>
 
             {suggestions.length === 0 && !imageryLoading && (
-              <p className="text-center text-sm text-muted-foreground py-6">
-                Click Generate for imagery suggestions.
-              </p>
+              <div className="text-center py-6">
+                <Wand2 className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">Click Analyze for imagery suggestions.</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Weak verbs, show-don't-tell, metaphors, sensory gaps</p>
+              </div>
             )}
 
             {suggestions.map((s, i) => (
-              <Card key={i} className="p-3">
+              <Card key={i} className="p-3 border-l-4 border-l-violet-500">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <Badge variant="outline" className="text-[10px] mb-1 capitalize">{s.type || 'suggestion'}</Badge>
-                    <p className="text-sm font-medium">{s.suggestion}</p>
-                    {s.effect && <p className="text-xs text-muted-foreground mt-1">{s.effect}</p>}
+                    <Badge variant="outline" className="text-[10px] mb-1.5 capitalize bg-violet-50 text-violet-700 dark:bg-violet-900 dark:text-violet-200">{s.type}</Badge>
+                    <p className="text-[11px] leading-snug font-medium">{s.suggestion}</p>
+                    {s.effect && (
+                      <p className="text-[10px] text-muted-foreground mt-1.5 italic">{s.effect}</p>
+                    )}
                   </div>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copyText(s.suggestion)}>
+                  <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => copyText(s.suggestion)}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
